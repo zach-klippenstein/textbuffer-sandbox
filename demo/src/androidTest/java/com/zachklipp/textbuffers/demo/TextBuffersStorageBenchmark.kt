@@ -4,9 +4,10 @@ import androidx.benchmark.junit4.BenchmarkRule
 import androidx.benchmark.junit4.measureRepeated
 import com.google.testing.junit.testparameterinjector.TestParameter
 import com.google.testing.junit.testparameterinjector.TestParameterInjector
-import com.zachklipp.textbuffers.TextBuffer
-import com.zachklipp.textbuffers.asTextBuffer
-import com.zachklipp.textbuffers.replace
+import com.zachklipp.textbuffers.GetCharsTrait
+import com.zachklipp.textbuffers.StringBuilderTextBufferStorage
+import com.zachklipp.textbuffers.TextBufferStorage
+import com.zachklipp.textbuffers.TextRange
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -15,11 +16,11 @@ import java.util.Arrays
 
 // TODO this is failing because unable to grant WRITE_EXTERNAL_STORAGE permission.
 @RunWith(TestParameterInjector::class)
-class TextBuffersBenchmark {
+class TextBuffersStorageBenchmark {
 
     @Suppress("unused")
-    enum class BufferImplementation(val factory: () -> TextBuffer) {
-        StringBuilder({ StringBuilder().asTextBuffer() }),
+    enum class BufferImplementation(val factory: () -> TextBufferStorage) {
+        StringBuilder({ StringBuilderTextBufferStorage(StringBuilder()) }),
     }
 
     @get:Rule
@@ -33,7 +34,7 @@ class TextBuffersBenchmark {
 
     @Test
     fun appendFromEmpty() {
-        lateinit var buffer: TextBuffer
+        lateinit var buffer: TextBufferStorage
         lateinit var check: StringBuilder
 
         rule.measureRepeated {
@@ -44,7 +45,7 @@ class TextBuffersBenchmark {
 
             for (i in 0 until bufferSize) {
                 // Don't use length because that costs a virtual method call.
-                buffer.replace(i, i, 'a')
+                buffer.replace(TextRange(i), 'a')
                 runWithTimingDisabled { check.append('a') }
             }
         }
@@ -58,8 +59,8 @@ class TextBuffersBenchmark {
         val check = StringBuilder().apply { fill('a', bufferSize) }
 
         rule.measureRepeated {
-            buffer.replace(bufferSize, bufferSize, 'a')
-            buffer.replace(bufferSize, bufferSize + 1, "")
+            buffer.replace(TextRange(bufferSize), 'a')
+            buffer.replace(TextRange(bufferSize, bufferSize + 1), "")
 
             runWithTimingDisabled {
                 check.replace(bufferSize, bufferSize, "a")
@@ -76,13 +77,24 @@ class TextBuffersBenchmark {
         }
     }
 
-    private fun TextBuffer.fill(char: Char, count: Int) {
-        replace(
-            replacement = char,
-            replacementStart = 0,
-            replacementEnd = count
-        ) { src, srcBegin, srcEnd, dest, destBegin ->
+    private fun TextBufferStorage.fill(char: Char, count: Int) {
+        val trait = GetCharsTrait<Char> { src, srcBegin, srcEnd, dest, destBegin ->
             Arrays.fill(dest, destBegin, srcEnd - srcBegin, src)
+        }
+        with(trait) {
+            replace(replacement = char, replacementRange = TextRange(0, count))
+        }
+    }
+
+    @Suppress("NOTHING_TO_INLINE")
+    private inline fun TextBufferStorage.replace(
+        range: TextRange = TextRange(0, length),
+        replacement: String
+    ) {
+        @Suppress("UNCHECKED_CAST")
+        val trait = java.lang.String::getChars as GetCharsTrait<String>
+        with(trait) {
+            replace(range, replacement, TextRange(0, replacement.length))
         }
     }
 }
