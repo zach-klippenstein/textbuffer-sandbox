@@ -14,6 +14,11 @@ value class TextRange private constructor(private val packed: Long) {
 
     override fun toString(): String =
         "TextRange(startInclusive=$startInclusive, endExclusive=$endExclusive)"
+
+    companion object {
+        val Zero = TextRange(0)
+        val Unspecified = TextRange(-1)
+    }
 }
 
 @Suppress("NOTHING_TO_INLINE")

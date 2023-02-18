@@ -7,27 +7,46 @@ package com.zachklipp.textbuffers
  * APIs. In a KMP library, this class would be expect/actual and implement all the relevant
  * platform-specific text-related types.
  */
-class TextBuffer(private val storage: TextBufferStorage) : CharSequence, Appendable {
+class TextBuffer private constructor(
+    private val storage: TextBufferStorage,
+    private val sliceMark: SliceMark? = null
+) : CharSequence, Appendable {
 
-    override val length: Int get() = storage.length
-    val range: TextRange get() = TextRange(0, length)
+    override val length: Int
+        get() = if (sliceMark == null) {
+            storage.length
+        } else {
+            storage.getRangeForMark(sliceMark).length
+        }
 
-    override fun get(index: Int): Char = storage[index]
+    @Suppress("ReplaceGetOrSet")
+    override fun get(index: Int): Char = storage.get(index, sliceMark)
+
+    /**
+     * Returns a [TextBuffer] that is a view of a [range] of this buffer. Edits to the returned
+     * buffer will be reflected in the source, and edits to the source within the range will be
+     * reflected in the view.
+     */
+    fun slice(range: TextRange): TextBuffer {
+        val mark = SliceMark()
+        storage.markRange(range, newMark = mark, sourceMark = sliceMark)
+        return TextBuffer(storage, mark)
+    }
 
     override fun subSequence(startIndex: Int, endIndex: Int): TextBuffer =
-        throw NotImplementedError()
+        slice(TextRange(startIndex, endIndex))
 
     fun getChars(
         srcBegin: Int,
         srcEnd: Int,
         dest: CharArray,
         destBegin: Int
-    ) = storage.getChars(srcBegin, srcEnd, dest, destBegin)
+    ) = storage.getChars(srcBegin, srcEnd, dest, destBegin, sliceMark)
 
     override fun toString(): String = "TextBuffer(\"${contentsToString()}\")"
 
-    fun contentsToString(range: TextRange = this.range): String =
-        storage.contentsToString(range)
+    fun contentsToString(range: TextRange = TextRange.Unspecified): String =
+        storage.contentsToString(range, sliceMark)
 
     override fun append(chars: CharSequence): Appendable = apply {
         replace(TextRange(length), chars)
@@ -40,15 +59,17 @@ class TextBuffer(private val storage: TextBufferStorage) : CharSequence, Appenda
         replace(TextRange(length), char)
     }
 
-    fun replace(range: TextRange = this.range, replacement: Char) =
-        storage.replace(range, replacement)
+    fun replace(range: TextRange = TextRange.Unspecified, replacement: Char) =
+        storage.replace(range, replacement, sliceMark)
 
     context(GetCharsTrait<T>)
     fun <T> replace(
-        range: TextRange = this.range,
+        range: TextRange = TextRange.Unspecified,
         replacement: T,
         replacementRange: TextRange
-    ) = storage.replace(range, replacement, replacementRange)
+    ) = storage.replace(range, replacement, replacementRange, sliceMark)
+
+    private class SliceMark
 
     companion object : GetCharsTrait<TextBuffer> {
         override fun getChars(
@@ -72,7 +93,7 @@ private val charSequenceGetCharsTrait =
     }
 
 fun TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: CharSequence,
     replacementRange: TextRange = TextRange(0, replacement.length)
 ): Unit = when (replacement) {
@@ -101,28 +122,28 @@ internal val charArrayGetCharsTrait =
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: CharArray,
     replacementRange: TextRange = TextRange(0, replacement.size)
 ) = replace(range, replacement, replacementRange, charArrayGetCharsTrait)
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: StringBuilder,
     replacementRange: TextRange = TextRange(0, replacement.length)
 ) = replace(range, replacement, replacementRange, StringBuilder::getChars)
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: StringBuffer,
     replacementRange: TextRange = TextRange(0, replacement.length)
 ) = replace(range, replacement, replacementRange, StringBuffer::getChars)
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: String,
     replacementRange: TextRange = TextRange(0, replacement.length)
 ) {
@@ -137,14 +158,14 @@ inline fun TextBuffer.replace(
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: TextBuffer,
-    replacementRange: TextRange = replacement.range
+    replacementRange: TextRange = TextRange(0, replacement.length)
 ) = replace(range, replacement, replacementRange, TextBuffer)
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: TextBufferStorage,
     replacementRange: TextRange = TextRange(0, replacement.length)
 ) = replace(range, replacement, replacementRange, TextBufferStorage)
@@ -152,7 +173,7 @@ inline fun TextBuffer.replace(
 @Suppress("NOTHING_TO_INLINE")
 @JvmName("replaceWithGetChars")
 inline fun <T> TextBuffer.replace(
-    range: TextRange = this.range,
+    range: TextRange = TextRange.Unspecified,
     replacement: T,
     replacementRange: TextRange = TextRange(0, replacement.length)
 ) where T : CharSequence, T : GetCharsTrait<T> =
