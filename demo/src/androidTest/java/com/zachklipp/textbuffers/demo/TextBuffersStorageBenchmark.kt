@@ -5,8 +5,8 @@ import androidx.benchmark.junit4.measureRepeated
 import com.google.testing.junit.testparameterinjector.TestParameter
 import com.google.testing.junit.testparameterinjector.TestParameterInjector
 import com.zachklipp.textbuffers.GetCharsTrait
-import com.zachklipp.textbuffers.StringBuilderTextBufferStorage
-import com.zachklipp.textbuffers.TextBufferStorage
+import com.zachklipp.textbuffers.storage.StringBuilderTextBufferStorage
+import com.zachklipp.textbuffers.storage.TextBufferStorage
 import com.zachklipp.textbuffers.TextRange
 import org.junit.Assert.*
 import org.junit.Rule

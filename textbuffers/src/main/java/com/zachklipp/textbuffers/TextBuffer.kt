@@ -1,5 +1,8 @@
 package com.zachklipp.textbuffers
 
+import com.zachklipp.textbuffers.storage.TextBufferStorage
+import com.zachklipp.textbuffers.storage.contentsToString
+
 /**
  * A mutable text buffer that is backed by a [TextBufferStorage].
  *

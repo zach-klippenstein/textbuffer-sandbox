@@ -1,4 +1,7 @@
-package com.zachklipp.textbuffers
+package com.zachklipp.textbuffers.storage
+
+import com.zachklipp.textbuffers.GetCharsTrait
+import com.zachklipp.textbuffers.TextRange
 
 /**
  * Storage implementation for [TextBuffer].
