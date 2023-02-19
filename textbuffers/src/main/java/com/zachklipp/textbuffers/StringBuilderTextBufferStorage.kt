@@ -5,7 +5,7 @@ class StringBuilderTextBufferStorage(private val builder: StringBuilder) : TextB
     override val length: Int
         get() = builder.length
 
-    override fun replace(range: TextRange, replacement: Char, mark: Any?) {
+    override fun replace(range: TextRange, replacement: Char, sourceMark: Any?) {
         builder.replace(range.startInclusive, range.endExclusive, replacement.toString())
     }
 
@@ -14,7 +14,7 @@ class StringBuilderTextBufferStorage(private val builder: StringBuilder) : TextB
         range: TextRange,
         replacement: T,
         replacementRange: TextRange,
-        mark: Any?
+        sourceMark: Any?
     ) {
         val chars = CharArray(replacementRange.length)
         getChars(
@@ -27,9 +27,9 @@ class StringBuilderTextBufferStorage(private val builder: StringBuilder) : TextB
         builder.replace(range.startInclusive, range.endExclusive, String(chars))
     }
 
-    override fun get(index: Int, mark: Any?): Char = builder[index]
+    override fun get(index: Int, sourceMark: Any?): Char = builder[index]
 
-    override fun getChars(srcBegin: Int, srcEnd: Int, dest: CharArray, destBegin: Int, mark: Any?) {
+    override fun getChars(srcBegin: Int, srcEnd: Int, dest: CharArray, destBegin: Int, sourceMark: Any?) {
         builder.getChars(srcBegin, srcEnd, dest, destBegin)
     }
 

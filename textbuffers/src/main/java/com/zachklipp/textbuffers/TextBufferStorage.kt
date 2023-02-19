@@ -11,28 +11,34 @@ interface TextBufferStorage {
     fun replace(
         range: TextRange = TextRange.Unspecified,
         replacement: Char,
-        mark: Any? = null
+        sourceMark: Any? = null
     )
 
     /**
      * Replace the characters in this buffer in [range] with the characters in [replacementRange]
-     * from [replacement]. If [mark] is non-null, [range] is relative to the mark.
+     * from [replacement]. If [sourceMark] is non-null, [range] is relative to the mark.
      */
     context(GetCharsTrait<T>)
     fun <T> replace(
         range: TextRange = TextRange.Unspecified,
         replacement: T,
         replacementRange: TextRange,
-        mark: Any? = null
+        sourceMark: Any? = null
     )
 
-    operator fun get(index: Int, mark: Any? = null): Char
+    operator fun get(index: Int, sourceMark: Any? = null): Char
 
     /**
      * Copy the characters from the buffer from [srcBegin] to [srcEnd] to [dest] starting at
-     * [destBegin]. If [mark] is non-null, [srcBegin] and [srcEnd] are relative to the mark.
+     * [destBegin]. If [sourceMark] is non-null, [srcBegin] and [srcEnd] are relative to the mark.
      */
-    fun getChars(srcBegin: Int, srcEnd: Int, dest: CharArray, destBegin: Int, mark: Any? = null)
+    fun getChars(
+        srcBegin: Int,
+        srcEnd: Int,
+        dest: CharArray,
+        destBegin: Int,
+        sourceMark: Any? = null
+    )
 
     /**
      * Starts tracking the specified [range]. When the text is changed, the range associated with
