@@ -25,7 +25,7 @@ interface TextBufferStorage {
     fun <T> replace(
         range: TextRange = TextRange.Unspecified,
         replacement: T,
-        replacementRange: TextRange,
+        replacementRange: TextRange = TextRange.Unspecified,
         sourceMark: Any? = null
     )
 
