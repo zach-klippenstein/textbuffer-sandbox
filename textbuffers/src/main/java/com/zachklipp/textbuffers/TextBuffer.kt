@@ -6,35 +6,46 @@ package com.zachklipp.textbuffers
  * This is basically just a wrapper for [TextBufferStorage] that provides more convenient public
  * APIs. In a KMP library, this class would be expect/actual and implement all the relevant
  * platform-specific text-related types.
+ *
+ * It also makes use of the [TextBufferStorage.markRange] API to implement two higher-level
+ * features:
+ *  - Creating "slices" of the buffer that track the originally-sliced range ([slice]).
+ *  - A simple string-based "annotation" system ([setAnnotation], [getAnnotations],
+ *   [removeAnnotations]).
  */
-class TextBuffer private constructor(
-    private val storage: TextBufferStorage,
-    private val sliceMark: SliceMark? = null
+open class TextBuffer private constructor(
+    private val storage: TextBufferStorage
 ) : CharSequence, Appendable {
 
-    override val length: Int
-        get() = if (sliceMark == null) {
-            storage.length
-        } else {
-            storage.getRangeForMark(sliceMark).length
-        }
+    protected open val sliceMark: Any? get() = null
+
+    final override val length: Int
+        get() = sliceMark?.let { storage.getRangeForMark(it).length }
+            ?: storage.length
 
     @Suppress("ReplaceGetOrSet")
-    override fun get(index: Int): Char = storage.get(index, sliceMark)
+    final override fun get(index: Int): Char = storage.get(index, sliceMark)
 
     /**
-     * Returns a [TextBuffer] that is a view of a [range] of this buffer. Edits to the returned
+     * Returns a [Slice] that is a view of a [range] of this buffer. Edits to the returned
      * buffer will be reflected in the source, and edits to the source within the range will be
-     * reflected in the view.
+     * reflected in the view. The returned [Slice] must be [disposed][Slice.dispose] when no longer
+     * needed, or it will leak resources required to track the slice's range in the buffer.
+     *
+     * To get a subsequence of the buffer that will not reflect changes but doesn't require disposal
+     * use [subSequence].
      */
-    fun slice(range: TextRange): TextBuffer {
-        val mark = SliceMark()
-        storage.markRange(range, newMark = mark, sourceMark = sliceMark)
-        return TextBuffer(storage, mark)
-    }
+    fun slice(range: TextRange): Slice = Slice.create(storage, range, sliceMark)
 
-    override fun subSequence(startIndex: Int, endIndex: Int): TextBuffer =
-        slice(TextRange(startIndex, endIndex))
+    /**
+     * Returns the substring of this buffer between [startIndex] (inclusive) and [endIndex]
+     * (exclusive). The returned [CharSequence] will not reflect any subsequent changes to this
+     * buffer.
+     *
+     * To get a view of this buffer that will reflect changes, use [slice].
+     */
+    final override fun subSequence(startIndex: Int, endIndex: Int): CharSequence =
+        contentsToString(TextRange(startIndex, endIndex))
 
     fun getChars(
         srcBegin: Int,
@@ -43,19 +54,19 @@ class TextBuffer private constructor(
         destBegin: Int
     ) = storage.getChars(srcBegin, srcEnd, dest, destBegin, sliceMark)
 
-    override fun toString(): String = "TextBuffer(\"${contentsToString()}\")"
+    final override fun toString(): String = "TextBuffer(\"${contentsToString()}\")"
 
     fun contentsToString(range: TextRange = TextRange.Unspecified): String =
         storage.contentsToString(range, sliceMark)
 
-    override fun append(chars: CharSequence): Appendable = apply {
+    final override fun append(chars: CharSequence): Appendable = apply {
         replace(TextRange(length), chars)
     }
 
-    override fun append(chars: CharSequence, start: Int, end: Int): Appendable =
+    final override fun append(chars: CharSequence, start: Int, end: Int): Appendable =
         append(chars.subSequence(start, end))
 
-    override fun append(char: Char): Appendable = apply {
+    final override fun append(char: Char): Appendable = apply {
         replace(TextRange(length), char)
     }
 
@@ -69,7 +80,60 @@ class TextBuffer private constructor(
         replacementRange: TextRange
     ) = storage.replace(range, replacement, replacementRange, sliceMark)
 
-    private class SliceMark
+    fun setAnnotation(annotation: String, tag: String, range: TextRange) {
+        val marker = Annotation(annotation, tag)
+        storage.markRange(range, marker, sliceMark)
+    }
+
+    fun getAnnotations(
+        annotation: String,
+        range: TextRange = TextRange.Unspecified,
+    ): List<Pair<String, TextRange>> =
+        storage.getMarksIntersecting(range, sliceMark) { mark, markedRange ->
+            if ((mark as? Annotation)?.annotation == annotation) {
+                Pair(mark.tag, markedRange)
+            } else {
+                null
+            }
+        }
+
+    fun removeAnnotations(
+        annotation: String,
+        tag: String,
+        range: TextRange = TextRange.Unspecified,
+    ) {
+        storage.getMarksIntersecting(range, sliceMark) { mark, _ ->
+            (mark as? Annotation)?.takeIf { it.annotation == annotation && it.tag == tag }
+        }.forEach(storage::unmark)
+    }
+
+    private data class Annotation(val annotation: String, val tag: String)
+
+    class Slice private constructor(private val storage: TextBufferStorage) : TextBuffer(storage) {
+        override val sliceMark get() = this
+
+        // block takes a TextBuffer to hide the dispose method from it – only our finally block
+        // can dispose.
+        inline fun <R> use(block: (TextBuffer) -> R): R {
+            try {
+                return block(this)
+            } finally {
+                dispose()
+            }
+        }
+
+        fun dispose() {
+            storage.unmark(sliceMark)
+        }
+
+        internal companion object {
+            @JvmStatic
+            internal fun create(storage: TextBufferStorage, range: TextRange, sourceMark: Any?) =
+                Slice(storage).also {
+                    storage.markRange(range, newMark = it, sourceMark = sourceMark)
+                }
+        }
+    }
 
     companion object : GetCharsTrait<TextBuffer> {
         override fun getChars(

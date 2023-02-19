@@ -1,14 +1,11 @@
 package com.zachklipp.textbuffers
 
-import kotlin.reflect.KClass
-
 class StringBuilderTextBufferStorage(private val builder: StringBuilder) : TextBufferStorage {
 
     override val length: Int
         get() = builder.length
 
     override fun replace(range: TextRange, replacement: Char, mark: Any?) {
-        // TODO overwrite single char and remove rest
         builder.replace(range.startInclusive, range.endExclusive, replacement.toString())
     }
 
@@ -28,7 +25,6 @@ class StringBuilderTextBufferStorage(private val builder: StringBuilder) : TextB
             0
         )
         builder.replace(range.startInclusive, range.endExclusive, String(chars))
-        // TODO delete then insert to avoid String's defensive copy?
     }
 
     override fun get(index: Int, mark: Any?): Char = builder[index]
@@ -41,15 +37,19 @@ class StringBuilderTextBufferStorage(private val builder: StringBuilder) : TextB
         TODO("Not yet implemented")
     }
 
+    override fun unmark(mark: Any) {
+        TODO("Not yet implemented")
+    }
+
     override fun getRangeForMark(mark: Any, sourceMark: Any?): TextRange {
         TODO("Not yet implemented")
     }
 
-    override fun <T : Any> getMarksIntersecting(
+    override fun <R : Any> getMarksIntersecting(
         range: TextRange,
-        type: KClass<T>,
-        mark: Any?
-    ): List<T> {
+        sourceMark: Any?,
+        predicate: (Any, TextRange) -> R?
+    ): List<R> {
         TODO("Not yet implemented")
     }
 

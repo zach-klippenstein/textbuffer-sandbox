@@ -1,7 +1,5 @@
 package com.zachklipp.textbuffers
 
-import kotlin.reflect.KClass
-
 /**
  * Storage implementation for [TextBuffer].
  *
@@ -45,6 +43,11 @@ interface TextBufferStorage {
     fun markRange(range: TextRange, newMark: Any, sourceMark: Any? = null)
 
     /**
+     * Removes a mark previously set by [markRange].
+     */
+    fun unmark(mark: Any)
+
+    /**
      * Gets the current range for the [mark] previously passed into [markRange]. If [sourceMark] is
      * non-null, the returned range will be relative to it.
      */
@@ -52,13 +55,13 @@ interface TextBufferStorage {
 
     /**
      * Gets all marks previously passed into [markRange] whose current ranges intersect [range].
-     * If [mark] is non-null, [range] is relative to the mark.
+     * If [sourceMark] is non-null, [range] is relative to the mark.
      */
-    fun <T : Any> getMarksIntersecting(
+    fun <R : Any> getMarksIntersecting(
         range: TextRange,
-        type: KClass<T>,
-        mark: Any? = null
-    ): List<T>
+        sourceMark: Any? = null,
+        predicate: (Any, TextRange) -> R?
+    ): List<R>
 
     companion object : GetCharsTrait<TextBufferStorage> {
         override fun getChars(
