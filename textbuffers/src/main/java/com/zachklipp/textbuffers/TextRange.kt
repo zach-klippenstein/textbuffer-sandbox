@@ -22,8 +22,10 @@ value class TextRange private constructor(private val packed: Long) {
 }
 
 @Suppress("NOTHING_TO_INLINE")
-private inline fun packInts(a: Int, b: Int): Long =
-    a.toLong().shl(32) or (b.toLong() and 0xFFFFFFFF)
+private inline fun packInts(a: Int, b: Int): Long {
+    require(a <= b)
+    return a.toLong().shl(32) or (b.toLong() and 0xFFFFFFFF)
+}
 
 @Suppress("NOTHING_TO_INLINE")
 private inline fun unpackIntA(value: Long): Int = value.shr(32).toInt()

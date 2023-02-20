@@ -6,10 +6,17 @@ import androidx.compose.runtime.snapshots.readable
 import androidx.compose.runtime.snapshots.writable
 import com.zachklipp.textbuffers.GetCharsTrait
 import com.zachklipp.textbuffers.TextRange
+import java.util.concurrent.atomic.AtomicReference
 
-class StringBuilderStorage : TextBufferStorage, StateObject {
+/**
+ * A snapshot-aware [TextBufferStorage] that is backed by a simple [StringBuilder]. New snapshot
+ * writes simply create a copy of the previous record's [StringBuilder].
+ */
+class StringBuilderStorage(
+    builderPool: StringBuilderPool = StringBuilderPool.Unpooled
+) : TextBufferStorage, StateObject {
 
-    private var record = Record()
+    private var record = Record(builderPool)
     override val firstStateRecord: StateRecord get() = record
 
     override val length: Int
@@ -76,32 +83,36 @@ class StringBuilderStorage : TextBufferStorage, StateObject {
 
     override fun toString(): String = "StringBuilderStorage(\"${contentsToString()}\")"
 
-    private class Record : StateRecord(), TextBufferStorage {
+    private class Record(private val pool: StringBuilderPool) : StateRecord(), TextBufferStorage {
         private var builder: StringBuilder? = null
         private var hasCopiedForWrite = false
 
-        private fun readableBuilder(): StringBuilder = builder ?: StringBuilder().also {
-            builder = it
-            hasCopiedForWrite = true
-        }
+        private fun readableBuilder(): StringBuilder =
+            builder ?: pool.getBuilderForCapacity(16).also {
+                builder = it
+                hasCopiedForWrite = true
+            }
 
         private fun writableBuilder(): StringBuilder = when {
             builder == null -> readableBuilder()
             hasCopiedForWrite -> builder!!
             else -> {
-                StringBuilder(builder!!).also {
-                    builder = it
-                    hasCopiedForWrite = true
-                }
+                pool.getBuilderForCapacity(builder!!.length)
+                    .also { newBuilder ->
+                        newBuilder.append(builder!!)
+                        builder = newBuilder
+                        hasCopiedForWrite = true
+                    }
             }
         }
 
         override fun assign(value: StateRecord) {
+            builder?.let(pool::recycleBuilder)
             builder = (value as Record).builder
             hasCopiedForWrite = false
         }
 
-        override fun create(): StateRecord = Record()
+        override fun create(): StateRecord = Record(pool)
 
         override val length: Int
             get() = readableBuilder().length
@@ -156,6 +167,39 @@ class StringBuilderStorage : TextBufferStorage, StateObject {
             predicate: (Any, TextRange) -> R?
         ): List<R> {
             TODO("Not yet implemented")
+        }
+    }
+}
+
+interface StringBuilderPool {
+
+    fun getBuilderForCapacity(capacity: Int): StringBuilder
+    fun recycleBuilder(builder: StringBuilder)
+
+    companion object {
+        val Unpooled = object : StringBuilderPool {
+            override fun getBuilderForCapacity(capacity: Int): StringBuilder =
+                StringBuilder(capacity)
+
+            override fun recycleBuilder(builder: StringBuilder) {}
+        }
+
+        fun singleBuilder() = object : StringBuilderPool {
+            private var cache = AtomicReference<StringBuilder>()
+
+            override fun getBuilderForCapacity(capacity: Int): StringBuilder {
+                val builder = cache.get()
+                return if (builder != null && cache.compareAndSet(builder, null)) {
+                    builder
+                } else {
+                    StringBuilder(capacity)
+                }
+            }
+
+            override fun recycleBuilder(builder: StringBuilder) {
+                builder.clear()
+                cache.compareAndSet(null, builder)
+            }
         }
     }
 }

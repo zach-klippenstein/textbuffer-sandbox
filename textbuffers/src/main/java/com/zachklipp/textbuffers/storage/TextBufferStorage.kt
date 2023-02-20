@@ -15,7 +15,7 @@ interface TextBufferStorage {
         range: TextRange = TextRange.Unspecified,
         replacement: Char,
         sourceMark: Any? = null
-    )
+    ) = replace(range, replacement, TextRange(0, 1), sourceMark, SingleCharGetCharsTrait)
 
     /**
      * Replace the characters in this buffer in [range] with the characters in [replacementRange]
@@ -87,11 +87,17 @@ fun TextBufferStorage.contentsToString(
     range: TextRange = TextRange.Unspecified,
     mark: Any? = null
 ): String {
-    @Suppress("NAME_SHADOWING")
-    val range = if (range == TextRange.Unspecified) TextRange(0, length) else range
-    val start = range.startInclusive
-    val end = range.endExclusive
+    val start = range.startInclusive.takeUnless { it == -1 } ?: 0
+    val end = range.endExclusive.takeUnless { it == -1 } ?: length
+    require(start >= 0 && end <= length) { "Expected range to be in 0..$length but was [$start, $end)" }
     val chars = CharArray(end - start)
     getChars(start, end, chars, 0, mark)
     return String(chars)
+}
+
+private object SingleCharGetCharsTrait : GetCharsTrait<Char> {
+    override fun getChars(src: Char, srcBegin: Int, srcEnd: Int, dest: CharArray, destBegin: Int) {
+        require(srcBegin == 0 && srcEnd == 1)
+        dest[destBegin] = src
+    }
 }

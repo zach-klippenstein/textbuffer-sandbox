@@ -30,16 +30,21 @@ class TextBufferStorageTest {
             snapshotAware = false,
             supportsMarks = false
         ),
-        StringBuilderStorage(
-            ::StringBuilderStorage,
+        StringBuilderStorageNoPooling(
+            { StringBuilderStorage(StringBuilderPool.Unpooled) },
             snapshotAware = true,
             supportsMarks = false
         ),
-//        GapBufferStorage(
-//            ::GapBufferStorage,
-//            snapshotAware = false,
-//            supportsMarks = false
-//        ),
+        StringBuilderStorageSingleItemPool(
+            { StringBuilderStorage(StringBuilderPool.singleBuilder()) },
+            snapshotAware = true,
+            supportsMarks = false
+        ),
+        GapBufferStorageNoSnapshot(
+            ::GapBufferStorageNoSnapshot,
+            snapshotAware = false,
+            supportsMarks = false
+        ),
     }
 
     enum class ReplacementCase(
@@ -132,7 +137,6 @@ class TextBufferStorageTest {
         }
         assertThat(buffer).contents.isEqualTo(case.initial)
 
-        println("replacing \"${buffer.contentsToString()}\"[${case.range}] with \"${case.replacement}\"[${case.replacementRange}]")
         buffer.replace(
             range = case.range,
             replacement = case.replacement,
@@ -239,7 +243,7 @@ class TextBufferStorageTest {
     }
 
     @Test
-    fun `multiple operations`() {
+    fun `multiple operations in no snapshot`() {
         val checker = StringBuilder()
 
         operations.forEach {
