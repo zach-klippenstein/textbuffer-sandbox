@@ -21,15 +21,15 @@ class StringBuilderStorage : TextBufferStorage, StateObject {
         }
     }
 
-    context(GetCharsTrait<T>)
     override fun <T> replace(
         range: TextRange,
         replacement: T,
         replacementRange: TextRange,
-        sourceMark: Any?
+        sourceMark: Any?,
+        getCharsTrait: GetCharsTrait<T>
     ) {
         record.writable(this) {
-            replace(range, replacement, replacementRange, sourceMark)
+            replace(range, replacement, replacementRange, sourceMark, getCharsTrait)
         }
     }
 
@@ -110,14 +110,20 @@ class StringBuilderStorage : TextBufferStorage, StateObject {
             writableBuilder().replace(range, replacement, sourceMark)
         }
 
-        context(GetCharsTrait<T>)
         override fun <T> replace(
             range: TextRange,
             replacement: T,
             replacementRange: TextRange,
-            sourceMark: Any?
+            sourceMark: Any?,
+            getCharsTrait: GetCharsTrait<T>
         ) {
-            writableBuilder().replace(range, replacement, replacementRange, sourceMark)
+            writableBuilder().replace(
+                range,
+                replacement,
+                replacementRange,
+                sourceMark,
+                getCharsTrait
+            )
         }
 
         override fun get(index: Int, sourceMark: Any?): Char = readableBuilder()[index]

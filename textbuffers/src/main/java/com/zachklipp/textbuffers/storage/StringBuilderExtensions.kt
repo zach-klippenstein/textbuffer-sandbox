@@ -17,12 +17,12 @@ internal fun StringBuilder.replace(
     }
 }
 
-context(GetCharsTrait<T>)
 internal fun <T> StringBuilder.replace(
     range: TextRange,
     replacement: T,
     replacementRange: TextRange,
     sourceMark: Any?,
+    getCharsTrait: GetCharsTrait<T>
 ) {
     @Suppress("NAME_SHADOWING")
     val range = if (range == TextRange.Unspecified) TextRange(0, length) else range
@@ -31,7 +31,7 @@ internal fun <T> StringBuilder.replace(
         replace(range.startInclusive, range.endExclusive, "")
     } else {
         val chars = CharArray(replacementRange.length)
-        getChars(
+        getCharsTrait.getChars(
             replacement,
             replacementRange.startInclusive,
             replacementRange.endExclusive,

@@ -21,12 +21,12 @@ interface TextBufferStorage {
      * Replace the characters in this buffer in [range] with the characters in [replacementRange]
      * from [replacement]. If [sourceMark] is non-null, [range] is relative to the mark.
      */
-    context(GetCharsTrait<T>)
     fun <T> replace(
         range: TextRange = TextRange.Unspecified,
         replacement: T,
         replacementRange: TextRange,
-        sourceMark: Any? = null
+        sourceMark: Any? = null,
+        getCharsTrait: GetCharsTrait<T>
     )
 
     operator fun get(index: Int, sourceMark: Any? = null): Char

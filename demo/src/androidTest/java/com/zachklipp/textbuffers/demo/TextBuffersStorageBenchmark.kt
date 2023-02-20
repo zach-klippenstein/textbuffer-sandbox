@@ -5,9 +5,9 @@ import androidx.benchmark.junit4.measureRepeated
 import com.google.testing.junit.testparameterinjector.TestParameter
 import com.google.testing.junit.testparameterinjector.TestParameterInjector
 import com.zachklipp.textbuffers.GetCharsTrait
+import com.zachklipp.textbuffers.TextRange
 import com.zachklipp.textbuffers.storage.StringBuilderStorageNoSnapshot
 import com.zachklipp.textbuffers.storage.TextBufferStorage
-import com.zachklipp.textbuffers.TextRange
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -78,12 +78,12 @@ class TextBuffersStorageBenchmark {
     }
 
     private fun TextBufferStorage.fill(char: Char, count: Int) {
-        val trait = GetCharsTrait<Char> { src, srcBegin, srcEnd, dest, destBegin ->
-            Arrays.fill(dest, destBegin, srcEnd - srcBegin, src)
-        }
-        with(trait) {
-            replace(replacement = char, replacementRange = TextRange(0, count))
-        }
+        replace(
+            replacement = char,
+            replacementRange = TextRange(0, count),
+            getCharsTrait = { src, srcBegin, srcEnd, dest, destBegin ->
+                Arrays.fill(dest, destBegin, srcEnd - srcBegin, src)
+            })
     }
 
     @Suppress("NOTHING_TO_INLINE")
@@ -92,9 +92,9 @@ class TextBuffersStorageBenchmark {
         replacement: String
     ) {
         @Suppress("UNCHECKED_CAST")
-        val trait = java.lang.String::getChars as GetCharsTrait<String>
-        with(trait) {
-            replace(range, replacement, TextRange(0, replacement.length))
-        }
+        replace(
+            range, replacement, TextRange(0, replacement.length),
+            getCharsTrait = java.lang.String::getChars as GetCharsTrait<String>
+        )
     }
 }

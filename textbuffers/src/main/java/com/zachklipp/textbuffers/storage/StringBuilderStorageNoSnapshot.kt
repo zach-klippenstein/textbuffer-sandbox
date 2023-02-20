@@ -14,14 +14,14 @@ class StringBuilderStorageNoSnapshot(
         builder.replace(range, replacement, sourceMark)
     }
 
-    context(GetCharsTrait<T>)
     override fun <T> replace(
         range: TextRange,
         replacement: T,
         replacementRange: TextRange,
-        sourceMark: Any?
+        sourceMark: Any?,
+        getCharsTrait: GetCharsTrait<T>
     ) {
-        builder.replace(range, replacement, replacementRange, sourceMark)
+        builder.replace(range, replacement, replacementRange, sourceMark, getCharsTrait)
     }
 
     override fun get(index: Int, sourceMark: Any?): Char = builder[index]

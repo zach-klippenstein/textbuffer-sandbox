@@ -11,7 +11,6 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.TruthJUnit.assume
 import com.google.testing.junit.testparameterinjector.TestParameter
 import com.google.testing.junit.testparameterinjector.TestParameterInjector
-import com.zachklipp.textbuffers.GetCharsTrait
 import com.zachklipp.textbuffers.TextRange
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -341,12 +340,15 @@ class TextBufferStorageTest {
         range: TextRange = TextRange.Unspecified,
         replacementRange: TextRange = TextRange(0, replacement.length)
     ) {
-        with(GetCharsTrait<String> { src, srcBegin, srcEnd, dest, destBegin ->
-            @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "KotlinConstantConditions")
-            (src as java.lang.String).getChars(srcBegin, srcEnd, dest, destBegin)
-        }) {
-            replace(range, replacement, replacementRange)
-        }
+        replace(
+            range,
+            replacement,
+            replacementRange,
+            getCharsTrait = { src, srcBegin, srcEnd, dest, destBegin ->
+                @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "KotlinConstantConditions")
+                (src as java.lang.String).getChars(srcBegin, srcEnd, dest, destBegin)
+            }
+        )
     }
 
     private fun assertThat(buffer: TextBufferStorage): TextBufferStorageSubject =

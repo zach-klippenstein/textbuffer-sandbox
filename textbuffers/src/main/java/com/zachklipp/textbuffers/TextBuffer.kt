@@ -7,6 +7,10 @@ import java.text.CharacterIterator
 /**
  * A mutable text buffer that is backed by a [TextBufferStorage].
  *
+ * This class is not covered by tests or benchmarks in this project. It's purpose is to serve as
+ * an API usage test of [TextBufferStorage], to see how its APIs feel to implement higher-level
+ * things.
+ *
  * This is basically just a wrapper for [TextBufferStorage] that provides more convenient public
  * APIs. In a KMP library, this class would be expect/actual and implement all the relevant
  * platform-specific text-related types.
@@ -77,12 +81,12 @@ open class TextBuffer private constructor(
     fun replace(range: TextRange = TextRange.Unspecified, replacement: Char) =
         storage.replace(range, replacement, sliceMark)
 
-    context(GetCharsTrait<T>)
     fun <T> replace(
         range: TextRange = TextRange.Unspecified,
         replacement: T,
-        replacementRange: TextRange
-    ) = storage.replace(range, replacement, replacementRange, sliceMark)
+        replacementRange: TextRange,
+        getCharsTrait: GetCharsTrait<T>
+    ) = storage.replace(range, replacement, replacementRange, sliceMark, getCharsTrait)
 
     fun setAnnotation(annotation: String, tag: String, range: TextRange) {
         val marker = Annotation(annotation, tag)
@@ -253,16 +257,3 @@ inline fun <T> TextBuffer.replace(
     replacementRange: TextRange = TextRange(0, replacement.length)
 ) where T : CharSequence, T : GetCharsTrait<T> =
     replace(range, replacement, replacementRange, replacement)
-
-@Suppress("NOTHING_TO_INLINE")
-@PublishedApi
-internal inline fun <T> TextBuffer.replace(
-    range: TextRange,
-    replacement: T,
-    replacementRange: TextRange,
-    getCharsTrait: GetCharsTrait<T>
-) {
-    with(getCharsTrait) {
-        replace(range, replacement, replacementRange)
-    }
-}

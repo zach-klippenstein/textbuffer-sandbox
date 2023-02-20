@@ -14,11 +14,12 @@ class GapBufferStorageNoSnapshot : TextBufferStorage {
         TODO("Not yet implemented")
     }
 
-    context(GetCharsTrait<T>) override fun <T> replace(
+    override fun <T> replace(
         range: TextRange,
         replacement: T,
         replacementRange: TextRange,
-        sourceMark: Any?
+        sourceMark: Any?,
+        getCharsTrait: GetCharsTrait<T>
     ) {
         TODO("Not yet implemented")
     }
