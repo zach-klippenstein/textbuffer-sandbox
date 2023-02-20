@@ -2,6 +2,7 @@ package com.zachklipp.textbuffers
 
 import com.zachklipp.textbuffers.storage.TextBufferStorage
 import com.zachklipp.textbuffers.storage.contentsToString
+import java.text.CharacterIterator
 
 /**
  * A mutable text buffer that is backed by a [TextBufferStorage].
@@ -109,6 +110,13 @@ open class TextBuffer private constructor(
             (mark as? Annotation)?.takeIf { it.annotation == annotation && it.tag == tag }
         }.forEach(storage::unmark)
     }
+
+    inline fun <R> withCharacterIterator(range: TextRange, block: (CharacterIterator) -> R): R =
+        createCharacterIterator(range).use(block)
+
+    @PublishedApi
+    internal fun createCharacterIterator(range: TextRange): CharacterIterator =
+        TextBufferCharacterIterator.create(storage, sliceMark, range)
 
     private data class Annotation(val annotation: String, val tag: String)
 
