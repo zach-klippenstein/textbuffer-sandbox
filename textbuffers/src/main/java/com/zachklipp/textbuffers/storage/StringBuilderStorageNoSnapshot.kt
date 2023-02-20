@@ -3,7 +3,7 @@ package com.zachklipp.textbuffers.storage
 import com.zachklipp.textbuffers.GetCharsTrait
 import com.zachklipp.textbuffers.TextRange
 
-class StringBuilderTextBufferStorage(
+class StringBuilderStorageNoSnapshot(
     private val builder: StringBuilder = StringBuilder()
 ) : TextBufferStorage {
 
@@ -11,7 +11,7 @@ class StringBuilderTextBufferStorage(
         get() = builder.length
 
     override fun replace(range: TextRange, replacement: Char, sourceMark: Any?) {
-        builder.replace(range.startInclusive, range.endExclusive, replacement.toString())
+        builder.replace(range, replacement, sourceMark)
     }
 
     context(GetCharsTrait<T>)
@@ -21,15 +21,7 @@ class StringBuilderTextBufferStorage(
         replacementRange: TextRange,
         sourceMark: Any?
     ) {
-        val chars = CharArray(replacementRange.length)
-        getChars(
-            replacement,
-            replacementRange.startInclusive,
-            replacementRange.endExclusive,
-            chars,
-            0
-        )
-        builder.replace(range.startInclusive, range.endExclusive, String(chars))
+        builder.replace(range, replacement, replacementRange, sourceMark)
     }
 
     override fun get(index: Int, sourceMark: Any?): Char = builder[index]
@@ -64,5 +56,5 @@ class StringBuilderTextBufferStorage(
         TODO("Not yet implemented")
     }
 
-    override fun toString(): String = "StringBuilderTextBufferStorage(\"${contentsToString()}\")"
+    override fun toString(): String = "StringBuilderStorageNoSnapshot(\"${contentsToString()}\")"
 }

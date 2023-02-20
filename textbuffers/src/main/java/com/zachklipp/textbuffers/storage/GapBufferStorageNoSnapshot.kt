@@ -3,7 +3,7 @@ package com.zachklipp.textbuffers.storage
 import com.zachklipp.textbuffers.GetCharsTrait
 import com.zachklipp.textbuffers.TextRange
 
-class GapBufferStorage : TextBufferStorage {
+class GapBufferStorageNoSnapshot : TextBufferStorage {
 
     private var buffer: CharArray = CharArray(128)
 
@@ -56,4 +56,6 @@ class GapBufferStorage : TextBufferStorage {
     ): List<R> {
         TODO("Not yet implemented")
     }
+
+    override fun toString(): String = "GapBufferStorageNoSnapshot(\"${contentsToString()}\")"
 }

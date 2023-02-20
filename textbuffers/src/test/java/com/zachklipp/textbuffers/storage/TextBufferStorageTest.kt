@@ -1,5 +1,7 @@
 package com.zachklipp.textbuffers.storage
 
+import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.runtime.snapshots.Snapshot.Companion.withMutableSnapshot
 import com.google.common.truth.FailureMetadata
 import com.google.common.truth.IntegerSubject
 import com.google.common.truth.StringSubject
@@ -13,26 +15,32 @@ import com.zachklipp.textbuffers.GetCharsTrait
 import com.zachklipp.textbuffers.TextRange
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlin.random.Random
 
 @Suppress("JUnitMalformedDeclaration", "unused")
 @RunWith(TestParameterInjector::class)
-class StringBuilderTextBufferStorageTest {
+class TextBufferStorageTest {
 
     enum class BufferImpl(
         val factory: () -> TextBufferStorage,
         val snapshotAware: Boolean = true,
         val supportsMarks: Boolean = true
     ) {
+        StringBuilderStorageNoSnapshot(
+            ::StringBuilderStorageNoSnapshot,
+            snapshotAware = false,
+            supportsMarks = false
+        ),
         StringBuilderStorage(
-            ::StringBuilderTextBufferStorage,
-            snapshotAware = false,
+            ::StringBuilderStorage,
+            snapshotAware = true,
             supportsMarks = false
         ),
-        GapBufferStorage(
-            ::GapBufferStorage,
-            snapshotAware = false,
-            supportsMarks = false
-        ),
+//        GapBufferStorage(
+//            ::GapBufferStorage,
+//            snapshotAware = false,
+//            supportsMarks = false
+//        ),
     }
 
     enum class ReplacementCase(
@@ -40,7 +48,7 @@ class StringBuilderTextBufferStorageTest {
         val replacement: String,
         val expected: String,
         val range: TextRange = TextRange.Unspecified,
-        val replacementRange: TextRange = TextRange.Unspecified,
+        val replacementRange: TextRange = TextRange(0, replacement.length),
         val sourceMark: Any? = null,
     ) {
         EmptyWithEmptyZero(initial = "", replacement = "", expected = "", range = TextRange.Zero),
@@ -96,25 +104,25 @@ class StringBuilderTextBufferStorageTest {
 
     @Test
     fun `empty buffer`() {
-        assertThat(buffer).length.isEqualTo(0)
         assertThat(buffer).contents.isEmpty()
-        assertThat(buffer.toString()).isEqualTo("()")
+        assertThat(buffer).length.isEqualTo(0)
+        assertThat(buffer.toString()).isEqualTo("${buffer.javaClass.simpleName}(\"\")")
     }
 
     @Test
     fun `insert char to empty buffer at zero`() {
         buffer.replace(TextRange.Zero, 'a')
 
-        assertThat(buffer).length.isEqualTo(1)
         assertThat(buffer).contents.isEqualTo("a")
+        assertThat(buffer).length.isEqualTo(1)
     }
 
     @Test
     fun `insert char to empty buffer at unspecified`() {
         buffer.replace(TextRange.Unspecified, 'a')
 
-        assertThat(buffer).length.isEqualTo(1)
         assertThat(buffer).contents.isEqualTo("a")
+        assertThat(buffer).length.isEqualTo(1)
     }
 
     @Test
@@ -125,14 +133,15 @@ class StringBuilderTextBufferStorageTest {
         }
         assertThat(buffer).contents.isEqualTo(case.initial)
 
+        println("replacing \"${buffer.contentsToString()}\"[${case.range}] with \"${case.replacement}\"[${case.replacementRange}]")
         buffer.replace(
             range = case.range,
             replacement = case.replacement,
             replacementRange = case.replacementRange
         )
 
-        assertThat(buffer).length.isEqualTo(case.expected.length)
         assertThat(buffer).contents.isEqualTo(case.expected)
+        assertThat(buffer).length.isEqualTo(case.expected.length)
     }
 
     @Test
@@ -144,18 +153,18 @@ class StringBuilderTextBufferStorageTest {
         }
         assertThat(buffer).contents.isEqualTo(case.initial)
 
-        // Snapshot.withMutableSnapshot
-        buffer.replace(
-            range = case.range,
-            replacement = case.replacement,
-            replacementRange = case.replacementRange
-        )
-        assertThat(buffer).length.isEqualTo(case.expected.length)
-        assertThat(buffer).contents.isEqualTo(case.expected)
-        //
+        withMutableSnapshot {
+            buffer.replace(
+                range = case.range,
+                replacement = case.replacement,
+                replacementRange = case.replacementRange
+            )
+            assertThat(buffer).contents.isEqualTo(case.expected)
+            assertThat(buffer).length.isEqualTo(case.expected.length)
+        }
 
-        assertThat(buffer).length.isEqualTo(case.expected.length)
         assertThat(buffer).contents.isEqualTo(case.expected)
+        assertThat(buffer).length.isEqualTo(case.expected.length)
     }
 
     @Test
@@ -167,18 +176,128 @@ class StringBuilderTextBufferStorageTest {
         }
         assertThat(buffer).contents.isEqualTo(case.initial)
 
-        // Snapshot.withMutableSnapshot
-        buffer.replace(
-            range = case.range,
-            replacement = case.replacement,
-            replacementRange = case.replacementRange
-        )
-        assertThat(buffer).length.isEqualTo(case.expected.length)
-        assertThat(buffer).contents.isEqualTo(case.expected)
-        // snapshot.dispose() without applying
+        val snapshot = Snapshot.takeMutableSnapshot()
+        try {
+            snapshot.enter {
+                buffer.replace(
+                    range = case.range,
+                    replacement = case.replacement,
+                    replacementRange = case.replacementRange
+                )
+                assertThat(buffer).contents.isEqualTo(case.expected)
+                assertThat(buffer).length.isEqualTo(case.expected.length)
+            }
 
-        assertThat(buffer).length.isEqualTo(case.initial.length)
-        assertThat(buffer).contents.isEqualTo(case.initial)
+            assertThat(buffer).contents.isEqualTo(case.initial)
+            assertThat(buffer).length.isEqualTo(case.initial.length)
+        } finally {
+            snapshot.dispose()
+        }
+    }
+
+    private val operations = buildOperations()
+
+    private data class MultiOp(
+        val bufferOp: (TextBufferStorage) -> Unit,
+        val checkOp: (StringBuilder) -> Unit
+    )
+
+    private fun buildOperations(): MutableList<(TextBufferStorage, StringBuilder) -> Unit> {
+        val chunkSize = 10
+        val chunks = ('a'..'z').map { char ->
+            buildString(chunkSize) {
+                repeat(chunkSize) {
+                    append(char)
+                }
+            }
+        }
+        val list = mutableListOf<(TextBufferStorage, StringBuilder) -> Unit>()
+        val random = Random(0)
+        chunks.forEach { chunk ->
+            list += { buffer, checker ->
+                assertThat(buffer).contents.isEqualTo(checker.toString())
+
+                val insertLocation = if (buffer.length == 0) 0 else random.nextInt(buffer.length)
+                buffer.replace(chunk, TextRange(insertLocation))
+                checker.insert(insertLocation, chunk)
+
+                assertThat(buffer).contents.isEqualTo(checker.toString())
+                if (buffer.length > 0) {
+                    val removeSize = random.nextInt(buffer.length)
+                    val removeLocation = if (removeSize == buffer.length) {
+                        0
+                    } else {
+                        random.nextInt(buffer.length - removeSize)
+                    }
+                    val removeRange = TextRange(removeLocation, removeLocation + removeSize)
+                    buffer.replace("", removeRange)
+                    checker.replace(removeRange.startInclusive, removeRange.endExclusive, "")
+                    assertThat(buffer).contents.isEqualTo(checker.toString())
+                }
+            }
+        }
+        return list
+    }
+
+    @Test
+    fun `multiple operations`() {
+        val checker = StringBuilder()
+
+        operations.forEach {
+            it(buffer, checker)
+        }
+
+        assertThat(buffer).contents.isEqualTo(checker.toString())
+    }
+
+    @Test
+    fun `multiple operations in individual serial snapshots`() {
+        val checker = StringBuilder()
+
+        operations.forEach {
+            withMutableSnapshot {
+                it(buffer, checker)
+            }
+        }
+
+        assertThat(buffer).contents.isEqualTo(checker.toString())
+    }
+
+    @Test
+    fun `multiple operations in grouped serial snapshots`() {
+        val checker = StringBuilder()
+        var opCount = 2
+
+        while (operations.isNotEmpty()) {
+            val group = List(opCount.coerceAtMost(operations.size)) {
+                operations[it]
+            }
+            operations.subList(0, group.size).clear()
+            opCount++
+
+            withMutableSnapshot {
+                group.forEach {
+                    it(buffer, checker)
+                }
+            }
+        }
+
+        assertThat(buffer).contents.isEqualTo(checker.toString())
+    }
+
+    @Test
+    fun `multiple operations in nested snapshots`() {
+        val checker = StringBuilder()
+
+        fun step() {
+            val op = operations.removeFirstOrNull() ?: return
+            withMutableSnapshot {
+                op(buffer, checker)
+                step()
+            }
+        }
+
+        assertThat(buffer).contents.isEqualTo(checker.toString())
     }
 
     @Test
@@ -220,7 +339,7 @@ class StringBuilderTextBufferStorageTest {
     private fun TextBufferStorage.replace(
         replacement: String,
         range: TextRange = TextRange.Unspecified,
-        replacementRange: TextRange = TextRange.Unspecified
+        replacementRange: TextRange = TextRange(0, replacement.length)
     ) {
         with(GetCharsTrait<String> { src, srcBegin, srcEnd, dest, destBegin ->
             @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "KotlinConstantConditions")

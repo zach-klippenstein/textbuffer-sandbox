@@ -25,7 +25,7 @@ interface TextBufferStorage {
     fun <T> replace(
         range: TextRange = TextRange.Unspecified,
         replacement: T,
-        replacementRange: TextRange = TextRange.Unspecified,
+        replacementRange: TextRange,
         sourceMark: Any? = null
     )
 
@@ -87,6 +87,8 @@ fun TextBufferStorage.contentsToString(
     range: TextRange = TextRange.Unspecified,
     mark: Any? = null
 ): String {
+    @Suppress("NAME_SHADOWING")
+    val range = if (range == TextRange.Unspecified) TextRange(0, length) else range
     val start = range.startInclusive
     val end = range.endExclusive
     val chars = CharArray(end - start)

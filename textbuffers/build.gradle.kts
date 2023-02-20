@@ -6,6 +6,7 @@ plugins {
 }
 
 dependencies {
+    api("org.jetbrains.compose.runtime:runtime-desktop:1.3.0")
     testImplementation("com.google.testparameterinjector:test-parameter-injector:1.10")
     testImplementation("com.google.truth:truth:1.1.3")
     testImplementation("junit:junit:4.13.2")

@@ -5,7 +5,7 @@ import androidx.benchmark.junit4.measureRepeated
 import com.google.testing.junit.testparameterinjector.TestParameter
 import com.google.testing.junit.testparameterinjector.TestParameterInjector
 import com.zachklipp.textbuffers.GetCharsTrait
-import com.zachklipp.textbuffers.storage.StringBuilderTextBufferStorage
+import com.zachklipp.textbuffers.storage.StringBuilderStorageNoSnapshot
 import com.zachklipp.textbuffers.storage.TextBufferStorage
 import com.zachklipp.textbuffers.TextRange
 import org.junit.Assert.*
@@ -20,7 +20,7 @@ class TextBuffersStorageBenchmark {
 
     @Suppress("unused")
     enum class BufferImplementation(val factory: () -> TextBufferStorage) {
-        StringBuilder({ StringBuilderTextBufferStorage(StringBuilder()) }),
+        StringBuilder({ StringBuilderStorageNoSnapshot(StringBuilder()) }),
     }
 
     @get:Rule
