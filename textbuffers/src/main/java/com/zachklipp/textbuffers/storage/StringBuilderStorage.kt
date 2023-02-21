@@ -12,9 +12,7 @@ import java.util.concurrent.atomic.AtomicReference
  * A snapshot-aware [TextBufferStorage] that is backed by a simple [StringBuilder]. New snapshot
  * writes simply create a copy of the previous record's [StringBuilder].
  */
-class StringBuilderStorage(
-    builderPool: StringBuilderPool = StringBuilderPool.Unpooled
-) : TextBufferStorage, StateObject {
+class StringBuilderStorage(builderPool: StringBuilderPool) : TextBufferStorage, StateObject {
 
     private var record = Record(builderPool)
     override val firstStateRecord: StateRecord get() = record

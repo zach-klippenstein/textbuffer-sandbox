@@ -23,7 +23,7 @@ value class TextRange private constructor(private val packed: Long) {
 
 @Suppress("NOTHING_TO_INLINE")
 private inline fun packInts(a: Int, b: Int): Long {
-    require(a <= b)
+    require(a <= b) { "Expected $a ≤ $b" }
     return a.toLong().shl(32) or (b.toLong() and 0xFFFFFFFF)
 }
 

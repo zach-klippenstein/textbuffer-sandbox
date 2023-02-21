@@ -95,6 +95,20 @@ fun TextBufferStorage.contentsToString(
     return String(chars)
 }
 
+fun TextBufferStorage.clear() {
+    replace(
+        replacement = Unit,
+        replacementRange = TextRange.Zero,
+        getCharsTrait = EmptyGetCharsTrait
+    )
+}
+
+private object EmptyGetCharsTrait : GetCharsTrait<Unit> {
+    override fun getChars(src: Unit, srcBegin: Int, srcEnd: Int, dest: CharArray, destBegin: Int) {
+        require(srcBegin == 0 && srcEnd == 0)
+    }
+}
+
 private object SingleCharGetCharsTrait : GetCharsTrait<Char> {
     override fun getChars(src: Char, srcBegin: Int, srcEnd: Int, dest: CharArray, destBegin: Int) {
         require(srcBegin == 0 && srcEnd == 1)

@@ -45,6 +45,16 @@ class TextBufferStorageTest {
             snapshotAware = false,
             supportsMarks = false
         ),
+        ReplayingGapBufferStorageNoPooling(
+            { ReplayingGapBufferStorage(ReplayingGapBufferStorage.GapBufferPool.Unpooled) },
+            snapshotAware = true,
+            supportsMarks = false
+        ),
+        ReplayingGapBufferStorageSingleItemPool(
+            { ReplayingGapBufferStorage(ReplayingGapBufferStorage.GapBufferPool.singleBuffer()) },
+            snapshotAware = true,
+            supportsMarks = false
+        ),
     }
 
     enum class ReplacementCase(
@@ -198,53 +208,58 @@ class TextBufferStorageTest {
         }
     }
 
-    private val operations = buildOperations()
-
-    private data class MultiOp(
-        val bufferOp: (TextBufferStorage) -> Unit,
-        val checkOp: (StringBuilder) -> Unit
-    )
-
-    private fun buildOperations(): MutableList<(TextBufferStorage, StringBuilder) -> Unit> {
-        val chunkSize = 10
-        val chunks = ('a'..'z').map { char ->
-            buildString(chunkSize) {
-                repeat(chunkSize) {
-                    append(char)
+    enum class MultiOpProvider(
+        val buildOperations: () -> MutableList<(TextBufferStorage, StringBuilder) -> Unit>
+    ) {
+        PrependOps({
+            ('a'..'z').mapTo(mutableListOf()) { char ->
+                fun(buffer: TextBufferStorage, checker: StringBuilder) {
+                    buffer.replace(TextRange.Zero, char)
+                    checker.insert(0, char)
                 }
             }
-        }
-        val list = mutableListOf<(TextBufferStorage, StringBuilder) -> Unit>()
-        val random = Random(0)
-        chunks.forEach { chunk ->
-            list += { buffer, checker ->
-                assertThat(buffer).contents.isEqualTo(checker.toString())
-
-                val insertLocation = if (buffer.length == 0) 0 else random.nextInt(buffer.length)
-                buffer.replace(chunk, TextRange(insertLocation))
-                checker.insert(insertLocation, chunk)
-
-                assertThat(buffer).contents.isEqualTo(checker.toString())
-                if (buffer.length > 0) {
-                    val removeSize = random.nextInt(buffer.length)
-                    val removeLocation = if (removeSize == buffer.length) {
-                        0
-                    } else {
-                        random.nextInt(buffer.length - removeSize)
-                    }
-                    val removeRange = TextRange(removeLocation, removeLocation + removeSize)
-                    buffer.replace("", removeRange)
-                    checker.replace(removeRange.startInclusive, removeRange.endExclusive, "")
-                    assertThat(buffer).contents.isEqualTo(checker.toString())
+        }),
+        RemovePrefixOps({
+            val list = mutableListOf(fun(buffer: TextBufferStorage, checker: StringBuilder) {
+                buffer.replace(replacement = alphabet)
+                checker.insert(0, alphabet)
+            })
+            repeat(alphabet.length) {
+                list += fun(buffer: TextBufferStorage, checker: StringBuilder) {
+                    buffer.replace("", TextRange(0, 1))
+                    checker.replace(0, 1, "")
                 }
             }
-        }
-        return list
+            list
+        }),
+        AppendOps({
+            ('a'..'z').mapTo(mutableListOf()) { char ->
+                fun(buffer: TextBufferStorage, checker: StringBuilder) {
+                    buffer.replace(TextRange(buffer.length), char)
+                    checker.append(char)
+                }
+            }
+        }),
+        RemoveSuffixOps({
+            val list = mutableListOf(fun(buffer: TextBufferStorage, checker: StringBuilder) {
+                buffer.replace(replacement = alphabet)
+                checker.insert(0, alphabet)
+            })
+            repeat(alphabet.length) {
+                list += fun(buffer: TextBufferStorage, checker: StringBuilder) {
+                    buffer.replace("", TextRange(buffer.length - 1, buffer.length))
+                    checker.replace(checker.length - 1, checker.length, "")
+                }
+            }
+            list
+        }),
+        RandomOps(::buildRandomOperations)
     }
 
     @Test
-    fun `multiple operations in no snapshot`() {
+    fun `multiple operations in no snapshot`(@TestParameter multiOpProvider: MultiOpProvider) {
         val checker = StringBuilder()
+        val operations = multiOpProvider.buildOperations()
 
         operations.forEach {
             it(buffer, checker)
@@ -254,8 +269,9 @@ class TextBufferStorageTest {
     }
 
     @Test
-    fun `multiple operations in individual serial snapshots`() {
+    fun `multiple operations in individual serial snapshots`(@TestParameter multiOpProvider: MultiOpProvider) {
         val checker = StringBuilder()
+        val operations = multiOpProvider.buildOperations()
 
         operations.forEach {
             withMutableSnapshot {
@@ -267,8 +283,11 @@ class TextBufferStorageTest {
     }
 
     @Test
-    fun `multiple operations in grouped serial snapshots`() {
+    fun `multiple operations in grouped serial snapshots`(
+        @TestParameter multiOpProvider: MultiOpProvider
+    ) {
         val checker = StringBuilder()
+        val operations = multiOpProvider.buildOperations()
         var opCount = 2
 
         while (operations.isNotEmpty()) {
@@ -289,8 +308,9 @@ class TextBufferStorageTest {
     }
 
     @Test
-    fun `multiple operations in nested snapshots`() {
+    fun `multiple operations in nested snapshots`(@TestParameter multiOpProvider: MultiOpProvider) {
         val checker = StringBuilder()
+        val operations = multiOpProvider.buildOperations()
 
         fun step() {
             val op = operations.removeFirstOrNull() ?: return
@@ -339,30 +359,78 @@ class TextBufferStorageTest {
         TODO()
     }
 
-    private fun TextBufferStorage.replace(
-        replacement: String,
-        range: TextRange = TextRange.Unspecified,
-        replacementRange: TextRange = TextRange(0, replacement.length)
-    ) {
-        replace(
-            range,
-            replacement,
-            replacementRange,
-            getCharsTrait = { src, srcBegin, srcEnd, dest, destBegin ->
-                @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "KotlinConstantConditions")
-                (src as java.lang.String).getChars(srcBegin, srcEnd, dest, destBegin)
-            }
-        )
-    }
-
-    private fun assertThat(buffer: TextBufferStorage): TextBufferStorageSubject =
-        assertAbout(::TextBufferStorageSubject).that(buffer)
-
     private class TextBufferStorageSubject(
         metadata: FailureMetadata,
         private val actual: TextBufferStorage
     ) : Subject(metadata, actual) {
         val length: IntegerSubject get() = check("length").that(actual.length)
         val contents: StringSubject get() = check("contents").that(actual.contentsToString())
+    }
+
+    private companion object {
+
+        private const val alphabet = "abcdefghijklmnopqrstuvwxyz"
+
+        fun assertThat(buffer: TextBufferStorage): TextBufferStorageSubject =
+            assertAbout(::TextBufferStorageSubject).that(buffer)
+
+        /**
+         * Creates a large list of pseudo-random operations to perform on both a [TextBufferStorage] and
+         * a [StringBuilder]. The latter is assumed to be correct and used to check that the result of
+         * the operations on the former is correct.
+         */
+        fun buildRandomOperations(): MutableList<(TextBufferStorage, StringBuilder) -> Unit> {
+            val chunkSize = 10
+            val chunks = ('a'..'z').map { char ->
+                buildString(chunkSize) {
+                    repeat(chunkSize) {
+                        append(char)
+                    }
+                }
+            }
+            val list = mutableListOf<(TextBufferStorage, StringBuilder) -> Unit>()
+            val random = Random(0)
+            chunks.forEach { chunk ->
+                list += { buffer, checker ->
+                    assertThat(buffer).contents.isEqualTo(checker.toString())
+
+                    val insertLocation =
+                        if (buffer.length == 0) 0 else random.nextInt(buffer.length)
+                    buffer.replace(chunk, TextRange(insertLocation))
+                    checker.insert(insertLocation, chunk)
+
+                    assertThat(buffer).contents.isEqualTo(checker.toString())
+                    if (buffer.length > 0) {
+                        val removeSize = random.nextInt(1, buffer.length)
+                        val removeLocation = if (removeSize == buffer.length) {
+                            0
+                        } else {
+                            random.nextInt(buffer.length - removeSize)
+                        }
+                        val removeRange = TextRange(removeLocation, removeLocation + removeSize)
+                        buffer.replace("", removeRange)
+                        checker.replace(removeRange.startInclusive, removeRange.endExclusive, "")
+                        assertThat(buffer).contents.isEqualTo(checker.toString())
+                    }
+                }
+            }
+            return list
+        }
+
+        private fun TextBufferStorage.replace(
+            replacement: String,
+            range: TextRange = TextRange.Unspecified,
+            replacementRange: TextRange = TextRange(0, replacement.length)
+        ) {
+            replace(
+                range,
+                replacement,
+                replacementRange,
+                getCharsTrait = { src, srcBegin, srcEnd, dest, destBegin ->
+                    @Suppress("PLATFORM_CLASS_MAPPED_TO_KOTLIN", "KotlinConstantConditions")
+                    (src as java.lang.String).getChars(srcBegin, srcEnd, dest, destBegin)
+                }
+            )
+        }
     }
 }

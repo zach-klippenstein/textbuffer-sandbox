@@ -6,6 +6,8 @@ import com.zachklipp.textbuffers.TextRange
 private const val DEBUG = false
 
 /**
+ * A simple gap buffer-backed [TextBufferStorage] that does not support snapshots.
+ *
  * @param initialCapacity The initial size of the underlying array.
  * @param minimumGapLength When a replace operation increases the size of the buffer, if the new gap
  * size will be less than this value, a new, larger underlying array will be allocated.
@@ -146,21 +148,40 @@ class GapBufferStorageNoSnapshot(
         require(destBegin in 0..(dest.size - getLength)) {
             "Expected destBegin to be in 0..${dest.size - getLength} but was $destBegin"
         }
+        if (DEBUG) println("getChars(srcBegin=$srcBegin, srcEnd=$srcEnd, destBegin=$destBegin) gapStart=$gapStart, gapEnd=$gapEnd")
 
         when {
             // Empty fetch, nothing to do.
-            srcBegin == srcEnd -> return
+            srcBegin == srcEnd -> {
+                if (DEBUG) println(" empty source range, nothing to do")
+                return
+            }
             // Entire section is before gap, single copy.
             srcEnd <= gapStart -> {
-                buffer.copyInto(dest, destBegin, srcBegin, srcEnd)
+                if (DEBUG) println(" source range is before gap")
+                buffer.copyInto(
+                    destination = dest,
+                    destinationOffset = destBegin,
+                    startIndex = srcBegin,
+                    endIndex = srcEnd
+                )
             }
             // Entire section is after gap, single copy.
-            srcBegin >= gapEnd -> {
-                buffer.copyInto(dest, destBegin, srcBegin + gapLen, srcBegin + getLength)
+            srcBegin >= gapStart -> {
+                val copyStart = srcBegin + gapLen
+                if (DEBUG) println(" source range is after gap. Copying from [$copyStart,${copyStart + getLength}) to $destBegin")
+                buffer.copyInto(
+                    destination = dest,
+                    destinationOffset = destBegin,
+                    startIndex = copyStart,
+                    endIndex = copyStart + getLength
+                )
             }
             // Fetch covers gap, two copies.
             else -> {
+                if (DEBUG) println(" source range covers gap")
                 val firstHalfLength = gapStart - srcBegin
+                if (DEBUG) println(" copying 1st half from [${srcBegin},${srcBegin + firstHalfLength}) to $destBegin")
                 buffer.copyInto(
                     destination = dest,
                     destinationOffset = destBegin,
@@ -168,6 +189,7 @@ class GapBufferStorageNoSnapshot(
                     endIndex = srcBegin + firstHalfLength
                 )
                 val secondHalfLength = getLength - firstHalfLength
+                if (DEBUG) println(" copying 2nd half from [${gapEnd},${gapEnd + secondHalfLength}) to ${destBegin + firstHalfLength}")
                 buffer.copyInto(
                     destination = dest,
                     destinationOffset = destBegin + firstHalfLength,
